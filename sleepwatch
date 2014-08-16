@@ -1,0 +1,68 @@
+#!/bin/bash
+# sleepwatch - A sleep wrapper with lockfile for forced triggering
+# Copyright (C) GPLv3 2014 tgrey
+# http://www.gnu.org/licenses/gpl-3.0.html
+# Questions, comments, etc: https://github.com/tgrey1/sleepwatch
+# Or: tgrey1 <AT> gmail.com
+VERSION=1.0
+
+##############################################################
+# NO USER CONFIGURATION REQUIRED
+##############################################################
+
+function show_usage {
+  echo \
+"$(basename "$0") version $VERSION
+
+This is a simple sleep timer that watches for forced triggering via lockfile removal
+WARNING: lockfile will be overwritten/deleted without a prompt!  Use caution providing input.
+
+Usage:
+  $(basename "$0") wait_in_seconds [lockfile]"
+}
+
+# not enough args?
+if [ $# -lt 1 ]; then
+  show_usage
+  exit 1
+fi
+
+# first arg is -h or --help?
+if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
+  show_usage
+  exit
+fi
+
+# first arg isn't a number?
+SLEEPTIME="$1"
+echo "$SLEEPTIME" | grep "[0-9]" > /dev/null || {
+  show_usage
+  exit 1
+}
+
+# if two args, set lockfile to second
+if [ $# -eq 2 ]; then
+  LOCKFILE="$2"
+fi
+
+# if lockfile isn't writeable, failback to a regular sleep and exit
+touch "$LOCKFILE" 2>/dev/null || { sleep "$SLEEPTIME"; exit; }
+
+# record pid to lockfile
+echo $$ > "$LOCKFILE"
+
+# check for lockfile every second, exit if it doesn't exist
+TIMER=0
+while [ "$TIMER" -lt "$SLEEPTIME" ]; do
+  sleep 1
+  if [ ! -e "$LOCKFILE" ]; then
+    echo "$(basename "$0") timer forced..."
+    break
+  fi
+  TIMER=$(( TIMER + 1 ))
+done
+
+# we're done, cleanup lockfile
+if [ -e "$LOCKFILE" ]; then
+  rm "$LOCKFILE"
+fi
